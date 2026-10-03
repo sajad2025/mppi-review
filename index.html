@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en" data-theme="sepia">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MPPI from the Beginning</title>
+<meta name="description" content="A short book that derives model predictive path integral control (MPPI) step by step, with a reference implementation.">
+<meta name="theme-color" content="#faf6ef">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%232c5f7c'/%3E%3Cpath d='M5 22 C11 22 13 8 27 9' stroke='%23faf6ef' stroke-width='2.6' fill='none' stroke-linecap='round'/%3E%3Cpath d='M5 22 C12 25 18 18 27 20 M5 22 C10 14 18 4 27 4' stroke='%23faf6ef' stroke-width='1' fill='none' opacity='.55'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<style>
+  :root {
+    --fs: 19px;
+    --serif: "STIX Two Text", "STIX Two", Georgia, "Times New Roman", serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --bar-h: 3.25rem;
+    --toc-w: 20rem;
+  }
+  :root[data-theme="sepia"] { --paper:#faf6ef; --ink:#2b2620; --surface:#f3ecdc; --rule:#d9cdb0; --muted:#6a5d48; --accent:#2c5f7c; --on-accent:#ffffff; --trace:#8a7d66; color-scheme: light; }
+  :root[data-theme="light"] { --paper:#ffffff; --ink:#1b1d20; --surface:#f4f5f6; --rule:#e1e4e8; --muted:#5c6570; --accent:#2c5f7c; --on-accent:#ffffff; --trace:#8a929b; color-scheme: light; }
+  :root[data-theme="dark"]  { --paper:#17191c; --ink:#e6e3dc; --surface:#20242a; --rule:#343a42; --muted:#98a0aa; --accent:#8fc1dc; --on-accent:#10202a; --trace:#7b838d; color-scheme: dark; }
+
+  * { box-sizing: border-box; }
+  html { font-size: var(--fs); scroll-padding-top: calc(var(--bar-h) + env(safe-area-inset-top, 0px) + .5rem); -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--serif); line-height: 1.7; -webkit-tap-highlight-color: transparent; }
+  a { color: var(--accent); text-underline-offset: .18em; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+  /* top bar */
+  .bar { position: fixed; inset: 0 0 auto 0; z-index: 30; height: calc(var(--bar-h) + env(safe-area-inset-top, 0px)); padding: env(safe-area-inset-top, 0px) .6rem 0; display: flex; align-items: center; gap: .4rem; background: var(--paper); border-bottom: 1px solid var(--rule); }
+  .bar .title { flex: 1; min-width: 0; text-align: center; font-weight: 600; font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); text-decoration: none; }
+  .tool { height: 2.2rem; min-width: 2.2rem; padding: 0 .55rem; border-radius: 6px; font-size: .85rem; display: inline-flex; align-items: center; justify-content: center; gap: .35rem; }
+  .tool:hover { background: var(--surface); }
+  .swatches { display: inline-flex; gap: .3rem; padding: 0 .2rem; }
+  .swatch { width: 1.25rem; height: 1.25rem; border-radius: 50%; border: 1px solid var(--rule); padding: 0; }
+  .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--accent); }
+  .swatch.sepia { background: #f3ecdc; } .swatch.light { background: #ffffff; } .swatch.dark { background: #17191c; }
+  .cycle { display: none; background: linear-gradient(90deg, var(--ink) 50%, var(--paper) 50%); }
+  @media (max-width: 560px) {
+    .swatches { display: none; } .cycle { display: inline-block; margin: 0 .25rem; }
+    .tool { padding: 0 .4rem; min-width: 2rem; } .bar { gap: .15rem; }
+    .sketch-note { flex-direction: column; }
+  }
+
+  /* contents */
+  .toc { position: fixed; z-index: 25; top: calc(var(--bar-h) + env(safe-area-inset-top, 0px)); bottom: 0; left: 0; width: min(var(--toc-w), 86vw); overflow-y: auto; background: var(--surface); border-right: 1px solid var(--rule); padding: 1rem .6rem calc(1.5rem + env(safe-area-inset-bottom, 0px)); transform: translateX(-102%); transition: transform .2s ease; }
+  body.toc-open .toc { transform: none; }
+  .toc ol { list-style: none; margin: 0; padding: 0; counter-reset: ch -1; }
+  .toc li { counter-increment: ch; }
+  .toc a { display: grid; grid-template-columns: 1.7rem 1fr; gap: .2rem; padding: .42rem .55rem; border-radius: 6px; color: var(--ink); text-decoration: none; font-size: .9rem; line-height: 1.35; }
+  .toc a::before { content: counter(ch); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .toc li:first-child a::before { content: ""; }
+  .toc a:hover { background: var(--paper); }
+  .toc a[aria-current="page"] { background: var(--paper); color: var(--accent); font-weight: 600; }
+  .scrim { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.35); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+  body.toc-open .scrim { opacity: 1; pointer-events: auto; }
+
+  main { padding: calc(var(--bar-h) + env(safe-area-inset-top, 0px) + 1.6rem) 1.15rem calc(4rem + env(safe-area-inset-bottom, 0px)); transition: margin-left .2s ease; }
+  .col { max-width: 40rem; margin: 0 auto; }
+
+  @media (min-width: 1100px) {
+    .scrim { display: none; }
+    body.toc-open main { margin-left: var(--toc-w); }
+  }
+
+  /* chapter text */
+  .prose h1 { font-size: 2.05rem; line-height: 1.18; font-weight: 600; margin: .2em 0 1.1em; letter-spacing: -.005em; }
+  .prose h2 { font-size: 1.36rem; line-height: 1.3; font-weight: 600; margin: 2.3em 0 .6em; }
+  .prose h3 { font-size: 1.1rem; font-weight: 600; margin: 1.8em 0 .4em; }
+  .prose p { margin: 0 0 1.05em; }
+  .prose ul, .prose ol { padding-left: 1.4em; margin: 0 0 1.1em; }
+  .prose li { margin: .3em 0; }
+  .prose strong { font-weight: 600; }
+  .prose code { font-family: var(--mono); font-size: .8em; background: var(--surface); padding: .1em .32em; border-radius: 4px; }
+  .prose pre { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: .9rem 1rem; overflow-x: auto; line-height: 1.5; margin: 0 0 1.3em; }
+  .prose pre code { background: none; padding: 0; font-size: .74rem; }
+  .table-wrap { overflow-x: auto; margin: 0 0 1.4em; }
+  .prose table { border-collapse: collapse; width: 100%; font-size: .9rem; line-height: 1.45; }
+  .prose th { text-align: left; font-weight: 600; border-bottom: 1.5px solid var(--ink); padding: .4rem .7rem .4rem 0; }
+  .prose td { border-bottom: 1px solid var(--rule); padding: .45rem .7rem .45rem 0; vertical-align: top; }
+  .prose p.fig { margin: 1.8em 0 .5em; text-align: center; }
+  .prose p.fig img { max-width: 100%; height: auto; background: #fff; padding: .6rem; border-radius: 8px; border: 1px solid var(--rule); }
+  .prose p.caption { font-size: .86rem; color: var(--muted); line-height: 1.5; margin: 0 auto 2em; max-width: 34rem; }
+  .prose p.caption em { font-style: normal; }
+  .math-block { overflow-x: auto; overflow-y: hidden; margin: 1.15em 0; padding: .15em 0; }
+  .math-block .katex-display { margin: 0; }
+  .katex { font-size: 1.04em; }
+  .math-error { font-family: var(--mono); font-size: .8em; color: #b4532a; }
+
+  .pager { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; margin-top: 3.2rem; padding-top: 1.2rem; border-top: 1px solid var(--rule); }
+  .pager a { display: block; padding: .7rem .9rem; border: 1px solid var(--rule); border-radius: 8px; text-decoration: none; color: var(--ink); line-height: 1.35; }
+  .pager a:hover { border-color: var(--accent); }
+  .pager small { display: block; color: var(--muted); font-size: .8rem; }
+  .pager .next { text-align: right; grid-column: 2; }
+
+  /* cover */
+  .cover h1 { font-size: clamp(2.3rem, 7.5vw, 3.5rem); line-height: 1.06; font-weight: 600; margin: .4rem 0 .5rem; letter-spacing: -.012em; }
+  .cover .sub { font-size: 1.15rem; color: var(--muted); margin: 0 0 1.6rem; font-style: italic; }
+  .sketch { border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); overflow: hidden; }
+  .sketch canvas { display: block; width: 100%; height: auto; aspect-ratio: 53 / 34; }
+  .sketch-note { display: flex; gap: .8rem; align-items: flex-start; justify-content: space-between; margin: .7rem 0 2rem; font-size: .88rem; color: var(--muted); line-height: 1.5; }
+  .sketch-note button { flex: none; border: 1px solid var(--rule); border-radius: 6px; padding: .3rem .7rem; font-size: .84rem; color: var(--ink); }
+  .sketch-note button:hover { border-color: var(--accent); }
+  .start { display: inline-block; background: var(--accent); color: var(--on-accent); text-decoration: none; padding: .6rem 1.15rem; border-radius: 8px; font-weight: 600; margin-right: .6rem; }
+  .resume { display: inline-block; padding: .6rem 0; }
+  .contents { list-style: none; padding: 0; margin: 2.4rem 0 0; counter-reset: c -1; border-top: 1px solid var(--rule); }
+  .contents li { counter-increment: c; border-bottom: 1px solid var(--rule); }
+  .contents a { display: grid; grid-template-columns: 2.1rem 1fr; padding: .7rem 0; text-decoration: none; color: var(--ink); }
+  .contents a::before { content: counter(c); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .contents li:first-child a::before { content: ""; }
+  .contents b { font-weight: 600; display: block; line-height: 1.35; }
+  .contents span { display: block; color: var(--muted); font-size: .9rem; line-height: 1.45; }
+  .contents a:hover b { color: var(--accent); }
+  .notice { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 1rem 1.1rem; }
+
+  @media (prefers-reduced-motion: reduce) { .toc, .scrim, main { transition: none; } }
+  @media print { .bar, .toc, .scrim, .pager { display: none !important; } main { padding: 0; margin: 0 !important; } }
+</style>
+</head>
+<body>
+<header class="bar">
+  <button class="tool" id="tocBtn" aria-controls="toc" aria-expanded="false">Contents</button>
+  <a class="title" href="#/" id="barTitle">MPPI from the Beginning</a>
+  <button class="tool" id="smaller" aria-label="Smaller text">A−</button>
+  <button class="tool" id="larger" aria-label="Larger text">A+</button>
+  <span class="swatches" role="group" aria-label="Page colour">
+    <button class="swatch sepia" data-theme="sepia" aria-label="Sepia page"></button>
+    <button class="swatch light" data-theme="light" aria-label="White page"></button>
+    <button class="swatch dark" data-theme="dark" aria-label="Dark page"></button>
+  </span>
+  <button class="swatch cycle" id="cycle" aria-label="Change page colour"></button>
+</header>
+<nav class="toc" id="toc" aria-label="Contents"><ol id="tocList"></ol></nav>
+<div class="scrim" id="scrim"></div>
+<main id="main"><div class="col" id="view"></div></main>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script>
+/*RENDER-START*/
+function renderTex(src, display) {
+  try {
+    return katex.renderToString(src, { displayMode: display, throwOnError: true, strict: "ignore" });
+  } catch (err) {
+    var safe = src.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    return '<span class="math-error" title="' + String(err.message).replace(/"/g, "&quot;") + '">' + safe + "</span>";
+  }
+}
+var mathBlock = {
+  name: "mathBlock", level: "block",
+  start: function (src) { var i = src.indexOf("$$"); return i < 0 ? undefined : i; },
+  tokenizer: function (src) {
+    var m = /^\$\$[ \t]*\n?([\s\S]+?)\n?[ \t]*\$\$[ \t]*(?:\n|$)/.exec(src);
+    if (m) return { type: "mathBlock", raw: m[0], text: m[1].trim() };
+  },
+  renderer: function (tok) { return '<div class="math-block">' + renderTex(tok.text, true) + "</div>\n"; }
+};
+var mathInline = {
+  name: "mathInline", level: "inline",
+  start: function (src) { var i = src.indexOf("$"); return i < 0 ? undefined : i; },
+  tokenizer: function (src) {
+    var m = /^\$(?!\$)((?:\\.|[^\\$\n])+?)\$/.exec(src);
+    if (m) return { type: "mathInline", raw: m[0], text: m[1] };
+  },
+  renderer: function (tok) { return renderTex(tok.text, false); }
+};
+var markedReady = false;
+function renderMarkdown(src) {
+  if (!markedReady) { marked.use({ extensions: [mathBlock, mathInline], gfm: true }); markedReady = true; }
+  return marked.parse(src);
+}
+/*RENDER-END*/
+
+(function () {
+  var view = document.getElementById("view");
+  var tocList = document.getElementById("tocList");
+  var barTitle = document.getElementById("barTitle");
+  var book = null, cache = {}, sketchData = null, animId = 0;
+  var wide = window.matchMedia("(min-width: 1100px)");
+  var calm = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  function save(k, v) { try { localStorage.setItem("mppi-book:" + k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem("mppi-book:" + k); } catch (e) { return null; } }
+
+  /* ---------- settings ---------- */
+  function setTheme(t) {
+    document.documentElement.setAttribute("data-theme", t);
+    var sw = document.querySelectorAll(".swatch");
+    for (var i = 0; i < sw.length; i++) if (sw[i].dataset.theme) sw[i].setAttribute("aria-pressed", String(sw[i].dataset.theme === t));
+    var meta = document.querySelector('meta[name="theme-color"]');
+    meta.setAttribute("content", getComputedStyle(document.documentElement).getPropertyValue("--paper").trim());
+    save("theme", t);
+    if (document.getElementById("sketch")) drawSketch(false);
+  }
+  function setSize(px) {
+    px = Math.max(15, Math.min(25, px));
+    document.documentElement.style.setProperty("--fs", px + "px");
+    save("size", String(px));
+  }
+  function currentSize() { return parseFloat(getComputedStyle(document.documentElement).fontSize) || 19; }
+  var storedTheme = load("theme");
+  setTheme(storedTheme || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "sepia"));
+  if (load("size")) setSize(parseFloat(load("size")));
+  document.getElementById("smaller").onclick = function () { setSize(currentSize() - 1); };
+  document.getElementById("larger").onclick = function () { setSize(currentSize() + 1); };
+  var swatches = document.querySelectorAll(".swatch");
+  for (var i = 0; i < swatches.length; i++) if (swatches[i].dataset.theme) swatches[i].onclick = function () { setTheme(this.dataset.theme); };
+  document.getElementById("cycle").onclick = function () {
+    var order = ["sepia", "light", "dark"], now = document.documentElement.getAttribute("data-theme");
+    setTheme(order[(order.indexOf(now) + 1) % order.length]);
+  };
+
+  /* ---------- contents drawer ---------- */
+  var tocBtn = document.getElementById("tocBtn");
+  function setToc(open) {
+    document.body.classList.toggle("toc-open", open);
+    tocBtn.setAttribute("aria-expanded", String(open));
+    if (wide.matches) save("toc", open ? "1" : "0");
+  }
+  tocBtn.onclick = function () { setToc(!document.body.classList.contains("toc-open")); };
+  document.getElementById("scrim").onclick = function () { setToc(false); };
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !wide.matches) setToc(false);
+    if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      var link = document.querySelector(e.key === "ArrowLeft" ? ".pager .prev" : ".pager .next");
+      if (link) location.hash = link.getAttribute("href");
+    }
+  });
+  setToc(wide.matches && load("toc") !== "0");
+
+  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function indexOfSlug(slug) { for (var i = 0; i < book.chapters.length; i++) if (book.chapters[i].slug === slug) return i; return -1; }
+  function label(i) { return (i > 0 ? i + ". " : "") + book.chapters[i].title; }
+
+  function buildToc() {
+    tocList.innerHTML = book.chapters.map(function (c) {
+      return '<li><a href="#/ch/' + c.slug + '" data-slug="' + c.slug + '"><span>' + esc(c.title) + "</span></a></li>";
+    }).join("");
+    tocList.addEventListener("click", function (e) { if (e.target.closest("a") && !wide.matches) setToc(false); });
+  }
+  function markCurrent(slug) {
+    var links = tocList.querySelectorAll("a");
+    for (var i = 0; i < links.length; i++) {
+      if (links[i].dataset.slug === slug) { links[i].setAttribute("aria-current", "page"); links[i].scrollIntoView({ block: "nearest" }); }
+      else links[i].removeAttribute("aria-current");
+    }
+  }
+
+  /* ---------- chapters ---------- */
+  function showChapter(slug) {
+    var i = indexOfSlug(slug);
+    if (i < 0) { showHome(); return; }
+    var ch = book.chapters[i];
+    cancelAnimationFrame(animId);
+    markCurrent(slug);
+    barTitle.textContent = label(i);
+    document.title = ch.title + " · " + book.title;
+    save("last", slug);
+    var done = function (text) {
+      if (location.hash.indexOf("/ch/" + slug) < 0) return;
+      var html;
+      if (window.marked && window.katex) html = renderMarkdown(text);
+      else html = '<p class="notice">The page could not load its formatting libraries, so this chapter is shown as plain text. Check the network connection and reload.</p><pre>' + esc(text) + "</pre>";
+      var prev = i > 0 ? '<a class="prev" href="#/ch/' + book.chapters[i - 1].slug + '"><small>Previous</small>' + esc(label(i - 1)) + "</a>" : "";
+      var next = i < book.chapters.length - 1 ? '<a class="next" href="#/ch/' + book.chapters[i + 1].slug + '"><small>Next</small>' + esc(label(i + 1)) + "</a>" : "";
+      view.innerHTML = '<article class="prose">' + html + '</article><nav class="pager" aria-label="Chapter">' + prev + next + "</nav>";
+      finish(ch.file);
+      window.scrollTo(0, 0);
+    };
+    if (cache[slug]) { done(cache[slug]); return; }
+    view.innerHTML = '<p style="color:var(--muted)">Loading ' + esc(ch.title) + "…</p>";
+    fetch(ch.file).then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+      .then(function (t) { cache[slug] = t; done(t); })
+      .catch(function () {
+        view.innerHTML = '<div class="notice"><p><strong>This chapter could not be loaded.</strong></p><p>The file <code>' + esc(ch.file) + "</code> was not found or could not be read. If you opened <code>index.html</code> directly from disk, serve the folder instead: run <code>python -m http.server</code> in it and open <code>http://localhost:8000</code>.</p></div>";
+      });
+  }
+  function finish(file) {
+    var dir = file.slice(0, file.lastIndexOf("/") + 1);
+    var imgs = view.querySelectorAll("img");
+    for (var i = 0; i < imgs.length; i++) {
+      var src = imgs[i].getAttribute("src");
+      if (!/^(https?:|data:|\/)/.test(src)) imgs[i].setAttribute("src", dir + src);
+      imgs[i].setAttribute("loading", "lazy");
+      var p = imgs[i].parentElement;
+      if (p && p.tagName === "P" && p.children.length === 1) {
+        p.classList.add("fig");
+        var cap = p.nextElementSibling;
+        if (cap && cap.tagName === "P" && cap.children.length >= 1 && cap.firstElementChild.tagName === "EM" && cap.firstChild === cap.firstElementChild) cap.classList.add("caption");
+      }
+    }
+    var tables = view.querySelectorAll("table");
+    for (var j = 0; j < tables.length; j++) {
+      var wrap = document.createElement("div"); wrap.className = "table-wrap";
+      tables[j].parentNode.insertBefore(wrap, tables[j]); wrap.appendChild(tables[j]);
+    }
+  }
+
+  /* ---------- cover ---------- */
+  function showHome() {
+    cancelAnimationFrame(animId);
+    markCurrent("");
+    barTitle.textContent = book.title;
+    document.title = book.title;
+    var last = load("last"), li = last ? indexOfSlug(last) : -1;
+    var resume = li > 0 ? '<a class="resume" href="#/ch/' + last + '">Continue with ' + esc(label(li)) + "</a>" : "";
+    view.innerHTML =
+      '<section class="cover"><h1>' + esc(book.title) + '</h1><p class="sub">' + esc(book.subtitle) + "</p>" +
+      '<div class="sketch"><canvas id="sketch" role="img" aria-label="Simulated trajectories of a point mass fanning out from a start point; those that pass an obstacle and approach the goal are drawn darker, and the path the controller follows is drawn on top."></canvas></div>' +
+      '<div class="sketch-note"><span>Each thin line is one simulated future of a point mass that has to get around the disc. Futures that reach the goal cheaply count for more. The thick line is the path the controller takes by following their weighted average, one step at a time.</span><button id="resample">Draw new samples</button></div>' +
+      '<p><a class="start" href="#/ch/' + book.chapters[0].slug + '">Start with the preface</a>' + resume + "</p>" +
+      '<ol class="contents">' + book.chapters.map(function (c) {
+        return '<li><a href="#/ch/' + c.slug + '"><div><b>' + esc(c.title) + "</b><span>" + esc(c.blurb) + "</span></div></a></li>";
+      }).join("") + "</ol></section>";
+    document.getElementById("resample").onclick = function () { sketchData = null; drawSketch(true); };
+    drawSketch(true);
+    window.scrollTo(0, 0);
+  }
+
+  /* ---------- the cover sketch: MPPI on a planar point mass ---------- */
+  function gauss() { var u = 1 - Math.random(), v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function simulateSketch() {
+    var K = 220, T = 30, dt = 0.1, lam = 60, sd = Math.sqrt(6), umax = 3;
+    var goal = [4, 0], obs = [2, 0.15], rad = 0.8;
+    var U = [], t, k;
+    for (t = 0; t < T; t++) U.push([0, 0]);
+    function step(s, a) { var vx = s[2] + dt * a[0], vy = s[3] + dt * a[1]; return [s[0] + dt * vx, s[1] + dt * vy, vx, vy]; }
+    function clip(v) { return Math.max(-umax, Math.min(umax, v)); }
+    function plan(x0, keep) {
+      var eps = [], S = [], paths = [], best = Infinity;
+      for (k = 0; k < K; k++) {
+        var s = x0.slice(), cost = 0, e = [], path = keep ? [[s[0], s[1]]] : null;
+        for (t = 0; t < T; t++) {
+          var ax = clip(U[t][0] + sd * gauss()), ay = clip(U[t][1] + sd * gauss());
+          var ex = ax - U[t][0], ey = ay - U[t][1];
+          e.push([ex, ey]);
+          s = step(s, [ax, ay]);
+          var dx = s[0] - goal[0], dy = s[1] - goal[1], ox = s[0] - obs[0], oy = s[1] - obs[1];
+          cost += dx * dx + dy * dy + 0.05 * (s[2] * s[2] + s[3] * s[3]) + (ox * ox + oy * oy < rad * rad ? 1000 : 0);
+          cost += lam * (U[t][0] * ex + U[t][1] * ey) / 6;
+          if (keep) path.push([s[0], s[1]]);
+        }
+        var fx = s[0] - goal[0], fy = s[1] - goal[1];
+        cost += 20 * (fx * fx + fy * fy) + 2 * (s[2] * s[2] + s[3] * s[3]);
+        eps.push(e); S.push(cost); if (keep) paths.push(path); if (cost < best) best = cost;
+      }
+      var w = [], sum = 0;
+      for (k = 0; k < K; k++) { w.push(Math.exp(-(S[k] - best) / lam)); sum += w[k]; }
+      for (k = 0; k < K; k++) w[k] /= sum;
+      for (t = 0; t < T; t++) for (k = 0; k < K; k++) { U[t][0] += w[k] * eps[k][t][0]; U[t][1] += w[k] * eps[k][t][1]; }
+      for (t = 0; t < T; t++) { U[t][0] = clip(U[t][0]); U[t][1] = clip(U[t][1]); }
+      return { paths: paths, w: w };
+    }
+    var x = [0, 0, 0, 0], first = plan(x, true), route = [[0, 0]];
+    for (var n = 0; n < 95; n++) {
+      if (n > 0) plan(x, false);
+      x = step(x, U[0]); route.push([x[0], x[1]]);
+      U.shift(); U.push([0, 0]);
+    }
+    return { fan: first.paths, w: first.w, route: route, goal: goal, obs: obs, rad: rad };
+  }
+  function drawSketch(animate) {
+    var cv = document.getElementById("sketch");
+    if (!cv) return;
+    if (!sketchData) sketchData = simulateSketch();
+    var d = sketchData, css = getComputedStyle(document.documentElement);
+    var ink = css.getPropertyValue("--ink").trim(), trace = css.getPropertyValue("--trace").trim(),
+        accent = css.getPropertyValue("--accent").trim(), rule = css.getPropertyValue("--rule").trim();
+    var W = cv.clientWidth || 600, H = W * 34 / 53, dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    var g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var x0 = -0.6, x1 = 4.7, sc = W / (x1 - x0);
+    function X(x) { return (x - x0) * sc; } function Y(y) { return H / 2 - y * sc; }
+    function line(pts, upto) {
+      g.beginPath(); g.moveTo(X(pts[0][0]), Y(pts[0][1]));
+      for (var i = 1; i < Math.min(pts.length, upto); i++) g.lineTo(X(pts[i][0]), Y(pts[i][1]));
+      g.stroke();
+    }
+    var wmax = Math.max.apply(null, d.w);
+    function base() {
+      g.clearRect(0, 0, W, H);
+      g.fillStyle = rule; g.beginPath(); g.arc(X(d.obs[0]), Y(d.obs[1]), d.rad * sc, 0, 2 * Math.PI); g.fill();
+      g.lineJoin = "round"; g.lineCap = "round";
+      for (var k = 0; k < d.fan.length; k++) {
+        var r = d.w[k] / wmax, strong = r > 0.2;
+        g.strokeStyle = strong ? accent : trace; g.globalAlpha = strong ? 0.25 + 0.6 * r : 0.16; g.lineWidth = strong ? 1.2 : 0.7;
+        line(d.fan[k], 1e9);
+      }
+      g.globalAlpha = 1;
+      g.fillStyle = ink; g.beginPath(); g.arc(X(0), Y(0), 4, 0, 2 * Math.PI); g.fill();
+      g.strokeStyle = ink; g.lineWidth = 1.6; g.beginPath(); g.arc(X(d.goal[0]), Y(d.goal[1]), 6, 0, 2 * Math.PI); g.stroke();
+      g.font = "13px " + css.getPropertyValue("--serif"); g.textAlign = "center"; g.fillStyle = ink;
+      g.lineWidth = 4; g.strokeStyle = css.getPropertyValue("--surface").trim();
+      g.strokeText("start", X(0), Y(0) + 21); g.strokeText("goal", X(d.goal[0]), Y(d.goal[1]) + 23);
+      g.fillText("start", X(0), Y(0) + 21); g.fillText("goal", X(d.goal[0]), Y(d.goal[1]) + 23);
+    }
+    function route(n) { g.strokeStyle = accent; g.lineWidth = 3; g.globalAlpha = 1; line(d.route, n); }
+    cancelAnimationFrame(animId);
+    base();
+    if (!animate || calm.matches) { route(1e9); return; }
+    var layer = document.createElement("canvas"); layer.width = cv.width; layer.height = cv.height;
+    layer.getContext("2d").drawImage(cv, 0, 0);
+    var t0 = null, dur = 1500;
+    function frame(ts) {
+      if (!document.getElementById("sketch")) return;
+      if (t0 === null) t0 = ts;
+      var p = Math.min(1, (ts - t0) / dur);
+      g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height); g.drawImage(layer, 0, 0);
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      route(2 + Math.floor(p * d.route.length));
+      if (p < 1) animId = requestAnimationFrame(frame);
+    }
+    animId = requestAnimationFrame(frame);
+  }
+  var resizeTimer = 0;
+  window.addEventListener("resize", function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(function () { drawSketch(false); }, 120); });
+
+  /* ---------- routing ---------- */
+  function route() {
+    var parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+    if (parts[0] === "ch" && parts[1]) showChapter(parts[1]); else showHome();
+  }
+  fetch("book.json").then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function (b) { book = b; buildToc(); route(); window.addEventListener("hashchange", route); })
+    .catch(function () {
+      view.innerHTML = '<div class="notice"><p><strong>The book could not be loaded.</strong></p><p>The file <code>book.json</code> was not found or could not be read. If you opened <code>index.html</code> directly from disk, serve the folder instead: run <code>python -m http.server</code> in it and open <code>http://localhost:8000</code>.</p></div>';
+    });
+})();
+</script>
+</body>
+</html>

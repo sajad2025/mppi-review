@@ -1,0 +1,23 @@
+{
+  "title": "MPPI from the Beginning",
+  "subtitle": "Model predictive path integral control, derived step by step",
+  "chapters": [
+    {"slug": "preface", "file": "chapters/00-preface.md", "title": "Preface", "blurb": "What MPPI is, who the book is for, and the notation."},
+    {"slug": "optimal-control", "file": "chapters/01-optimal-control.md", "title": "The optimal control problem", "blurb": "Systems, costs, plans and policies."},
+    {"slug": "dynamic-programming", "file": "chapters/02-dynamic-programming.md", "title": "Dynamic programming and the linear-quadratic regulator", "blurb": "The exact method, why it does not scale, and the one case where it does."},
+    {"slug": "model-predictive-control", "file": "chapters/03-model-predictive-control.md", "title": "Model predictive control", "blurb": "Optimise from the current state, apply one step, repeat."},
+    {"slug": "monte-carlo", "file": "chapters/04-monte-carlo.md", "title": "Monte Carlo and importance sampling", "blurb": "Estimating expectations from samples, and what happens when the weights collapse."},
+    {"slug": "free-energy", "file": "chapters/05-free-energy.md", "title": "Relative entropy and free energy", "blurb": "The one inequality that turns control into sampling."},
+    {"slug": "stochastic-control", "file": "chapters/06-stochastic-control.md", "title": "Stochastic optimal control in continuous time", "blurb": "The Hamilton–Jacobi–Bellman equation."},
+    {"slug": "path-integral-control", "file": "chapters/07-path-integral-control.md", "title": "Path integral control", "blurb": "A change of variables, the Feynman–Kac formula, and control as a weighted average of noise."},
+    {"slug": "information-theoretic-derivation", "file": "chapters/08-information-theoretic-derivation.md", "title": "The information-theoretic derivation", "blurb": "The MPPI update law for arbitrary dynamics, in discrete time."},
+    {"slug": "the-algorithm", "file": "chapters/09-the-algorithm.md", "title": "The MPPI algorithm", "blurb": "The listing, line by line, with two worked simulations."},
+    {"slug": "linear-quadratic-example", "file": "chapters/10-linear-quadratic-example.md", "title": "A worked example: the linear-quadratic problem", "blurb": "Everything in closed form, checked against simulation."},
+    {"slug": "tuning", "file": "chapters/11-tuning.md", "title": "Tuning and practice", "blurb": "Temperature, noise, horizon, samples, and the effective sample size."},
+    {"slug": "relatives", "file": "chapters/12-relatives.md", "title": "MPPI as an optimiser, and its relatives", "blurb": "A gradient view, the cross-entropy method and predictive sampling."},
+    {"slug": "variants", "file": "chapters/13-variants.md", "title": "Variants and extensions", "blurb": "Robustness, safety, better sampling, smoothness, learned models."},
+    {"slug": "theory", "file": "chapters/14-theory.md", "title": "What is proved about MPPI", "blurb": "The target, one update, and the closed loop."},
+    {"slug": "implementation", "file": "chapters/15-implementation.md", "title": "A reference implementation", "blurb": "Seventy lines of NumPy, and twelve exercises."},
+    {"slug": "references", "file": "chapters/16-references.md", "title": "References", "blurb": "Textbooks and papers."}
+  ]
+}
