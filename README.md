@@ -1,10 +1,12 @@
 # MPPI from the Beginning
 
+**Read online: [sajad2025.github.io/mppi-review](https://sajad2025.github.io/mppi-review/)**
+
 A short book that derives model predictive path integral control (MPPI) step by step, starting from the optimal control problem and ending with a working implementation. Seventeen short chapters, five figures, and about seventy lines of NumPy.
 
 ## Read it
 
-- **In the reader.** `index.html` is a single-page reader with a contents drawer, three page colours and adjustable text size. It loads the chapters from `chapters/` and renders the mathematics with KaTeX.
+- **In the reader.** [The deployed reader](https://sajad2025.github.io/mppi-review/) (`index.html`) is a single-page reader with a contents drawer, three page colours and adjustable text size. It loads the chapters from `chapters/` and renders the mathematics with KaTeX.
 - **On GitHub.** Every chapter is a plain Markdown file and renders directly on github.com, formulas included. Start with [the preface](chapters/00-preface.md).
 
 ## Contents
@@ -33,7 +35,7 @@ A short book that derives model predictive path integral control (MPPI) step by 
 
 1. Push this folder to a repository.
 2. In the repository, open Settings, then Pages, and choose "Deploy from a branch" with the root of the main branch.
-3. The reader appears at `https://<user>.github.io/<repository>/`.
+3. The reader appears at `https://<user>.github.io/<repository>/`; for this repository that is <https://sajad2025.github.io/mppi-review/>.
 
 The empty file `.nojekyll` tells GitHub Pages to serve the Markdown files as they are. Keep it.
 
