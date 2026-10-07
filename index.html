@@ -117,6 +117,16 @@
   .contents a:hover b { color: var(--accent); }
   .notice { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 1rem 1.1rem; }
 
+  /* offline download, at the foot of the contents drawer */
+  .offline { margin: 1.2rem .55rem 0; padding-top: 1rem; border-top: 1px solid var(--rule); font-size: .82rem; line-height: 1.45; }
+  .offline h2 { margin: 0 0 .45rem; font-size: .72rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .offline p { margin: 0 0 .55rem; }
+  .offline .hint { color: var(--muted); }
+  .offline .save { background: var(--accent); color: var(--on-accent); padding: .45rem .8rem; border-radius: 6px; font-size: .82rem; font-weight: 600; }
+  .offline .again { padding: 0; color: var(--muted); font-size: .78rem; text-decoration: underline; text-underline-offset: .18em; }
+  .offline .meter { height: 5px; background: var(--rule); border-radius: 3px; overflow: hidden; }
+  .offline .meter div { height: 100%; background: var(--accent); transition: width .2s; }
+
   @media (prefers-reduced-motion: reduce) { .toc, .scrim, main { transition: none; } }
   @media print { .bar, .toc, .scrim, .pager { display: none !important; } main { padding: 0; margin: 0 !important; } }
 </style>
@@ -134,7 +144,7 @@
   </span>
   <button class="swatch cycle" id="cycle" aria-label="Change page colour"></button>
 </header>
-<nav class="toc" id="toc" aria-label="Contents"><ol id="tocList"></ol></nav>
+<nav class="toc" id="toc" aria-label="Contents"><ol id="tocList"></ol><section class="offline" id="offline" hidden></section></nav>
 <div class="scrim" id="scrim"></div>
 <main id="main"><div class="col" id="view"></div></main>
 
@@ -277,6 +287,10 @@ function renderMarkdown(src) {
     fetch(ch.file).then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
       .then(function (t) { cache[slug] = t; done(t); })
       .catch(function () {
+        if (!navigator.onLine) {
+          view.innerHTML = '<div class="notice"><p><strong>You are offline, and this chapter has not been saved.</strong></p><p>When you are back online, open Contents and choose “Save for offline” to keep the whole book on this device.</p></div>';
+          return;
+        }
         view.innerHTML = '<div class="notice"><p><strong>This chapter could not be loaded.</strong></p><p>The file <code>' + esc(ch.file) + "</code> was not found or could not be read. If you opened <code>index.html</code> directly from disk, serve the folder instead: run <code>python -m http.server</code> in it and open <code>http://localhost:8000</code>.</p></div>";
       });
   }
@@ -420,13 +434,111 @@ function renderMarkdown(src) {
   var resizeTimer = 0;
   window.addEventListener("resize", function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(function () { drawSketch(false); }, 120); });
 
+  /* ---------- offline download ---------- */
+  // One tap fetches every file the book needs; the service worker (sw.js)
+  // stores each response as it passes through. Cache Storage itself is the
+  // record of what is saved, so a cleared cache reads as unsaved next visit.
+  // Each item is a file plus what it pulls in: a chapter brings its figures,
+  // a stylesheet brings its fonts.
+  var offline = document.getElementById("offline");
+  var LIBS = [ // the same URLs as the <link> and <script> tags above
+    "https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=JetBrains+Mono:wght@400;500&display=swap",
+    "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css",
+    "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js",
+    "https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"
+  ];
+  var FIGURE = /!\[[^\]]*\]\(([^)\s]+)/g, WOFF2 = /url\(["']?([^)"']+\.woff2)["']?\)/g;
+  var off = { status: "checking", have: 0, done: 0, failed: 0 };
+
+  function offlineItems() {
+    var items = ["./", "index.html", "book.json"].map(function (u) { return { url: u }; });
+    book.chapters.forEach(function (c) { items.push({ url: c.file, slug: c.slug, deps: FIGURE }); });
+    LIBS.forEach(function (u) { items.push({ url: u, deps: /\.css$|css2\?/.test(u) ? WOFF2 : null }); });
+    return items;
+  }
+  async function isSaved(url) { try { return !!(await caches.match(url)); } catch (e) { return false; } }
+
+  // Fetches go through the service worker only once it controls the page,
+  // which on a first visit happens a moment after it installs.
+  function controlled() {
+    if (navigator.serviceWorker.controller) return Promise.resolve();
+    return new Promise(function (resolve) {
+      navigator.serviceWorker.addEventListener("controllerchange", resolve, { once: true });
+      setTimeout(resolve, 8000);
+    });
+  }
+  async function saveFile(url) {
+    var r = await fetch(url);
+    if (!r.ok) throw new Error(url + ": " + r.status);
+    var body = await r.text();
+    if (!(await isSaved(url))) throw new Error(url + ": not cached");
+    return body;
+  }
+  async function saveItem(it) {
+    var body = await saveFile(it.url);
+    if (it.slug) cache[it.slug] = body;
+    if (!it.deps) return;
+    var base = new URL(it.url, location.href), urls = [], m;
+    it.deps.lastIndex = 0;
+    while ((m = it.deps.exec(body))) urls.push(new URL(m[1], base).href);
+    await Promise.all(urls.map(saveFile));
+  }
+
+  // The service worker saves the page and libraries on its own at first
+  // visit, so "partially saved" is judged by chapters alone.
+  async function checkOffline() {
+    var items = offlineItems(), all = true, have = 0;
+    for (var i = 0; i < items.length; i++) {
+      var ok = await isSaved(items[i].url);
+      all = all && ok;
+      if (ok && items[i].slug) have++;
+    }
+    off.have = have;
+    off.status = all && !off.failed ? "done" : have ? "partial" : "idle";
+    drawOffline();
+  }
+  async function saveOffline() {
+    var queue = offlineItems();
+    off.status = "saving"; off.done = 0; off.failed = 0; drawOffline();
+    await controlled();
+    async function worker() {
+      while (queue.length) {
+        var it = queue.shift();
+        try { await saveItem(it); } catch (e) { off.failed++; }
+        off.done++; drawOffline();
+      }
+    }
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    await checkOffline();
+  }
+
+  function drawOffline() {
+    var total = offlineItems().length, chapters = book.chapters.length, html;
+    if (off.status === "checking") html = '<p class="hint">Checking what is saved…</p>';
+    else if (off.status === "saving") html = "<p>Saving… " + off.done + "/" + total + '</p><div class="meter"><div style="width:' + Math.round(100 * off.done / total) + '%"></div></div>';
+    else if (off.status === "done") html = "<p>Saved. All " + chapters + " chapters, the figures and the fonts work without a connection.</p>" + '<button class="again" data-act="save">Download again</button>';
+    else if (off.status === "partial") html = "<p>" + off.have + " of " + chapters + " chapters saved." + (off.failed ? " Some files did not download; check the connection." : "") + "</p>" + '<button class="save" data-act="save">' + (off.failed ? "Try again" : "Save the rest") + "</button>";
+    else html = '<p class="hint">Save the whole book, about 1.5 MB, to read it without a connection.</p><button class="save" data-act="save">Save for offline</button>';
+    offline.innerHTML = "<h2>Offline</h2>" + html;
+  }
+  offline.addEventListener("click", function (e) {
+    if (e.target.closest("[data-act=save]") && off.status !== "saving") saveOffline();
+  });
+  function initOffline() {
+    if (!("serviceWorker" in navigator) || typeof caches === "undefined") return;
+    navigator.serviceWorker.register("sw.js").catch(function () {});
+    offline.hidden = false;
+    drawOffline();
+    checkOffline();
+  }
+
   /* ---------- routing ---------- */
   function route() {
     var parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
     if (parts[0] === "ch" && parts[1]) showChapter(parts[1]); else showHome();
   }
   fetch("book.json").then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(function (b) { book = b; buildToc(); route(); window.addEventListener("hashchange", route); })
+    .then(function (b) { book = b; buildToc(); initOffline(); route(); window.addEventListener("hashchange", route); })
     .catch(function () {
       view.innerHTML = '<div class="notice"><p><strong>The book could not be loaded.</strong></p><p>The file <code>book.json</code> was not found or could not be read. If you opened <code>index.html</code> directly from disk, serve the folder instead: run <code>python -m http.server</code> in it and open <code>http://localhost:8000</code>.</p></div>';
     });

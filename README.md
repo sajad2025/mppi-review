@@ -6,7 +6,7 @@ A short book that derives model predictive path integral control (MPPI) step by 
 
 ## Read it
 
-- **In the reader.** [The deployed reader](https://sajad2025.github.io/mppi-review/) (`index.html`) is a single-page reader with a contents drawer, three page colours and adjustable text size. It loads the chapters from `chapters/` and renders the mathematics with KaTeX.
+- **In the reader.** [The deployed reader](https://sajad2025.github.io/mppi-review/) (`index.html`) is a single-page reader with a contents drawer, three page colours and adjustable text size. It loads the chapters from `chapters/` and renders the mathematics with KaTeX. "Save for offline" at the foot of the contents drawer downloads the whole book (about 1.5 MB, with figures and fonts) so it reads without a connection.
 - **On GitHub.** Every chapter is a plain Markdown file and renders directly on github.com, formulas included. Start with [the preface](chapters/00-preface.md).
 
 ## Contents
@@ -66,6 +66,7 @@ Every number and figure in the text comes from these scripts with the seeds in t
 
 ```text
 index.html          the reader
+sw.js               service worker for offline reading
 book.json           chapter list used by the reader
 chapters/           one Markdown file per chapter
 chapters/figures/   figures produced by code/make_figures.py
